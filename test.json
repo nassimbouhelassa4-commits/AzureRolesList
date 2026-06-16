@@ -1,0 +1,101 @@
+{
+  "properties": {
+    "displayName": "Deny Web Apps that allow FTP or FTPS publishing",
+    "policyType": "Custom",
+    "mode": "All",
+    "description": "Denies creation or update of Azure App Service Web Apps unless FTP/FTPS publishing is disabled.",
+    "metadata": {
+      "category": "App Service"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable policy enforcement."
+        },
+        "allowedValues": [
+          "Deny",
+          "Audit",
+          "Disabled"
+        ],
+        "defaultValue": "Deny"
+      },
+      "allowedFtpsStates": {
+        "type": "Array",
+        "metadata": {
+          "displayName": "Allowed FTP/FTPS states",
+          "description": "Use ['Disabled'] to block both FTP and FTPS. Use ['Disabled', 'FtpsOnly'] to block only unencrypted FTP."
+        },
+        "defaultValue": [
+          "Disabled"
+        ],
+        "allowedValues": [
+          "Disabled",
+          "FtpsOnly"
+        ]
+      }
+    },
+    "policyRule": {
+      "if": {
+        "anyOf": [
+          {
+            "allOf": [
+              {
+                "field": "type",
+                "equals": "Microsoft.Web/sites"
+              },
+              {
+                "field": "kind",
+                "like": "app*"
+              },
+              {
+                "anyOf": [
+                  {
+                    "field": "Microsoft.Web/sites/siteConfig.ftpsState",
+                    "exists": "false"
+                  },
+                  {
+                    "field": "Microsoft.Web/sites/siteConfig.ftpsState",
+                    "notIn": "[parameters('allowedFtpsStates')]"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "field": "type",
+                "equals": "Microsoft.Web/sites/config"
+              },
+              {
+                "field": "name",
+                "like": "*/web"
+              },
+              {
+                "field": "kind",
+                "like": "app*"
+              },
+              {
+                "anyOf": [
+                  {
+                    "field": "Microsoft.Web/sites/config/ftpsState",
+                    "exists": "false"
+                  },
+                  {
+                    "field": "Microsoft.Web/sites/config/ftpsState",
+                    "notIn": "[parameters('allowedFtpsStates')]"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]"
+      }
+    }
+  }
+}
