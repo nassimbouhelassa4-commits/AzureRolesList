@@ -1,0 +1,70 @@
+<#
+.SYNOPSIS
+    Get Azure AD group memberships for service principals from a CSV file.
+
+.DESCRIPTION
+    Input CSV must contain a column named SPNId.
+    SPNId must be the Service Principal ObjectId.
+
+    Output CSV will contain:
+    - GroupId
+    - SpnId
+
+.EXAMPLE
+    .\Get-SpnGroupMemberships.ps1 -InputCsv ".\spns.csv" -OutputCsv ".\spn-groups.csv"
+#>
+
+param(
+    [Parameter(Mandatory = $true)]
+    [string]$InputCsv,
+
+    [Parameter(Mandatory = $true)]
+    [string]$OutputCsv
+)
+
+# Validate input file
+if (-not (Test-Path $InputCsv)) {
+    throw "Input CSV file not found: $InputCsv"
+}
+
+$inputData = Import-Csv -Path $InputCsv
+
+if (-not ($inputData | Get-Member -Name "SPNId" -MemberType NoteProperty)) {
+    throw "Input CSV must contain a column named 'SPNId'."
+}
+
+$results = @()
+
+foreach ($row in $inputData) {
+
+    $spnId = $row.SPNId
+
+    if ([string]::IsNullOrWhiteSpace($spnId)) {
+        Write-Warning "Skipping empty SPNId value."
+        continue
+    }
+
+    Write-Host "Checking groups for Service Principal ObjectId: $spnId"
+
+    try {
+        $memberships = Get-AzureADServicePrincipalMembership -ObjectId $spnId -ErrorAction Stop
+
+        $groups = $memberships | Where-Object {
+            $_.ObjectType -eq "Group"
+        }
+
+        foreach ($group in $groups) {
+            $results += [PSCustomObject]@{
+                GroupId = $group.ObjectId
+                SpnId   = $spnId
+            }
+        }
+    }
+    catch {
+        Write-Warning "Failed to get memberships for SPNId '$spnId'. Error: $($_.Exception.Message)"
+    }
+}
+
+$results | Export-Csv -Path $OutputCsv -NoTypeInformation -Encoding UTF8
+
+Write-Host "Done. Output written to: $OutputCsv"
